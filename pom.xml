@@ -18,7 +18,7 @@
 
     <properties>
         <java.version>17</java.version>
-
+        <logback.version>1.5.37</logback.version>
         <jacoco-maven-plugin.version>0.8.13</jacoco-maven-plugin.version>
         <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
         <maven-pmd-plugin.version>3.28.0</maven-pmd-plugin.version>
