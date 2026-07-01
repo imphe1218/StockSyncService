@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "/vendor-a/products"
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": [
+      { "sku": "A-100", "name": "Vendor A Keyboard", "quantity": 10 },
+      { "sku": "A-200", "name": "Vendor A Mouse", "quantity": 0 }
+    ]
+  }
+}
