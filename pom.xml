@@ -209,6 +209,12 @@
                 <configuration>
                     <cvssScoreThreshold>7.0</cvssScoreThreshold>
                     <scope>runtime</scope>
+                    <clientConfiguration>
+                        <authConfiguration>
+                            <username>${env.SONATYPE_EMAIL}}</username>
+                            <password>${env.SONATYPE_TOKEN}</password>
+                        </authConfiguration>
+                    </clientConfiguration>
                 </configuration>
                 <executions>
                     <execution>
