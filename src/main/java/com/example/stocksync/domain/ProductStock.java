@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
-
+@SuppressWarnings("PMD.DataClass")
 @Entity
 @Table(name = "product_stock")
 public class ProductStock {
