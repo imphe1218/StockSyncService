@@ -29,4 +29,15 @@ class VendorBCsvClientTest {
 
         assertThat(stockItems).containsExactly(new StockItem("B-1", "Monitor", 7, "VENDOR_B"));
     }
+
+    @Test
+    void fetchStockReturnsEmptyListWhenCsvFileDoesNotExist() {
+        Path csv = tempDir.resolve("missing-stock.csv");
+        StockSyncProperties.VendorB propertyVendorB = new StockSyncProperties.VendorB(csv.toString());
+        StockSyncProperties properties = new StockSyncProperties(300000L, null, propertyVendorB);
+
+        VendorBCsvClient client = new VendorBCsvClient(properties);
+
+        assertThat(client.fetchStock()).isEmpty();
+    }
 }

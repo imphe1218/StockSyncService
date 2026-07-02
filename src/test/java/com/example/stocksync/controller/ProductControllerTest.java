@@ -36,4 +36,13 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].sku").value("SKU-1"));
     }
+
+    @Test
+    void listProductsReturnsEmptyListWhenNoProductsExist() throws Exception {
+        when(productStockRepository.findAll()).thenReturn(List.of());
+
+        mockMvc.perform(get("/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
 }
