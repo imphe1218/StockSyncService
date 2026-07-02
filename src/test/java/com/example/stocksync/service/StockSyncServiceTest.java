@@ -1,5 +1,7 @@
 package com.example.stocksync.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
@@ -12,15 +14,15 @@ import com.example.stocksync.domain.StockItem;
 import com.example.stocksync.repository.ProductStockRepository;
 import com.example.stocksync.repository.StockEventRepository;
 import com.example.stocksync.vendor.VendorStockClient;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 
@@ -29,7 +31,7 @@ class StockSyncServiceTest {
 
     private static final String SKU = "SKU-001";
     private static final String PRODUCT_NAME = "Gaming Mouse";
-    private static final String VENDOR = "VENDOR_A";
+    private static final String VENDOR = "Vendor A";
 
     @Mock
     private VendorStockClient vendorStockClient;
@@ -43,20 +45,101 @@ class StockSyncServiceTest {
     @Mock
     private TransactionTemplate transactionTemplate;
 
-    @Mock
-    private TransactionStatus transactionStatus;
-
-    private StockSyncService stockSyncService;
-
     @BeforeEach
     void setUp() {
         doAnswer(invocation -> {
-            Consumer<TransactionStatus> action = invocation.getArgument(0);
-            action.accept(transactionStatus);
+            invocation.getArgument(0, java.util.function.Consumer.class).accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
+    }
 
-        stockSyncService = new StockSyncService(
+    @Test
+    void createsOutOfStockEventWhenQuantityMovesFromNonZeroToZero() {
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(newStockItem(0))));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock(10)));
+
+        stockSyncService.synchronize();
+
+        verify(stockEventRepository).save(any(StockEvent.class));
+        verify(productStockRepository).save(any(ProductStock.class));
+    }
+
+    @Test
+    void doesNotCreateOutOfStockEventWhenQuantityRemainsZero() {
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(newStockItem(0))));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock(0)));
+
+        stockSyncService.synchronize();
+
+        verify(stockEventRepository, never()).save(any(StockEvent.class));
+        verify(productStockRepository).save(any(ProductStock.class));
+    }
+
+    @Test
+    void doesNotCreateOutOfStockEventWhenQuantityMovesFromZeroToNonZero() {
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(newStockItem(15))));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock(0)));
+
+        stockSyncService.synchronize();
+
+        verify(stockEventRepository, never()).save(any(StockEvent.class));
+        verify(productStockRepository).save(any(ProductStock.class));
+    }
+
+    @Test
+    void createsNewProductWhenSkuDoesNotExist() {
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(newStockItem(8))));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.empty());
+
+        stockSyncService.synchronize();
+
+        ArgumentCaptor<ProductStock> productCaptor = forClass(ProductStock.class);
+        verify(productStockRepository).save(productCaptor.capture());
+        verify(stockEventRepository, never()).save(any(StockEvent.class));
+
+        ProductStock savedProduct = productCaptor.getValue();
+        assertThat(savedProduct.getSku()).isEqualTo(SKU);
+        assertThat(savedProduct.getName()).isEqualTo(PRODUCT_NAME);
+        assertThat(savedProduct.getQuantity()).isEqualTo(8);
+        assertThat(savedProduct.getVendor()).isEqualTo(VENDOR);
+    }
+
+    @Test
+    void createsOutOfStockEventWhenNewProductStartsAtZero() {
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(newStockItem(0))));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.empty());
+
+        stockSyncService.synchronize();
+
+        verify(productStockRepository).save(any(ProductStock.class));
+        verify(stockEventRepository).save(any(StockEvent.class));
+    }
+
+    @Test
+    void doesNothingWhenVendorReturnsNoStock() {
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of()));
+
+        stockSyncService.synchronize();
+
+        verify(productStockRepository, never()).findBySku(any());
+        verify(productStockRepository, never()).save(any(ProductStock.class));
+        verify(stockEventRepository, never()).save(any(StockEvent.class));
+    }
+
+    private StockSyncService newStockSyncService() {
+        return new StockSyncService(
                 List.of(vendorStockClient),
                 productStockRepository,
                 stockEventRepository,
@@ -64,85 +147,13 @@ class StockSyncServiceTest {
         );
     }
 
-    @Test
-    void createsNewProductStockWhenSkuDoesNotExist() {
-        StockItem stockItem = new StockItem(SKU, PRODUCT_NAME, 10, VENDOR);
-
-        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(stockItem)));
-        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.empty());
-
-        stockSyncService.synchronize();
-
-        verify(productStockRepository).save(any(ProductStock.class));
-        verify(stockEventRepository, never()).save(any(StockEvent.class));
+    private static StockItem newStockItem(final int quantity) {
+        return new StockItem(SKU, PRODUCT_NAME, quantity, VENDOR);
     }
 
-    @Test
-    void createsOutOfStockEventWhenNewProductIsCreatedWithZeroQuantity() {
-        StockItem stockItem = new StockItem(SKU, PRODUCT_NAME, 0, VENDOR);
-
-        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(stockItem)));
-        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.empty());
-
-        stockSyncService.synchronize();
-
-        verify(productStockRepository).save(any(ProductStock.class));
-        verify(stockEventRepository).save(any(StockEvent.class));
-    }
-
-    @Test
-    void createsOutOfStockEventWhenExistingProductMovesFromNonZeroToZero() {
-        StockItem stockItem = new StockItem(SKU, PRODUCT_NAME, 0, VENDOR);
-        ProductStock existingProductStock = new ProductStock(SKU, PRODUCT_NAME, 5, VENDOR);
-
-        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(stockItem)));
-        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock));
-
-        stockSyncService.synchronize();
-
-        verify(productStockRepository).save(existingProductStock);
-        verify(stockEventRepository).save(any(StockEvent.class));
-    }
-
-    @Test
-    void doesNotCreateOutOfStockEventWhenExistingProductRemainsInStock() {
-        StockItem stockItem = new StockItem(SKU, PRODUCT_NAME, 7, VENDOR);
-        ProductStock existingProductStock = new ProductStock(SKU, PRODUCT_NAME, 5, VENDOR);
-
-        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(stockItem)));
-        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock));
-
-        stockSyncService.synchronize();
-
-        verify(productStockRepository).save(existingProductStock);
-        verify(stockEventRepository, never()).save(any(StockEvent.class));
-    }
-
-    @Test
-    void doesNotCreateOutOfStockEventWhenExistingProductMovesFromZeroToNonZero() {
-        StockItem stockItem = new StockItem(SKU, PRODUCT_NAME, 3, VENDOR);
-        ProductStock existingProductStock = new ProductStock(SKU, PRODUCT_NAME, 0, VENDOR);
-
-        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(stockItem)));
-        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock));
-
-        stockSyncService.synchronize();
-
-        verify(productStockRepository).save(existingProductStock);
-        verify(stockEventRepository, never()).save(any(StockEvent.class));
-    }
-
-    @Test
-    void doesNotCreateOutOfStockEventWhenExistingProductRemainsZero() {
-        StockItem stockItem = new StockItem(SKU, PRODUCT_NAME, 0, VENDOR);
-        ProductStock existingProductStock = new ProductStock(SKU, PRODUCT_NAME, 0, VENDOR);
-
-        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(stockItem)));
-        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock));
-
-        stockSyncService.synchronize();
-
-        verify(productStockRepository).save(existingProductStock);
-        verify(stockEventRepository, never()).save(any(StockEvent.class));
+    private static ProductStock existingProductStock(final int quantity) {
+        ProductStock productStock = new ProductStock(SKU, PRODUCT_NAME, quantity, VENDOR);
+        productStock.setLastUpdated(LocalDateTime.now());
+        return productStock;
     }
 }
