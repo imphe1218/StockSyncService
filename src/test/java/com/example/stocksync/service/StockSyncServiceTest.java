@@ -17,6 +17,8 @@ import com.example.stocksync.vendor.VendorStockClient;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +27,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
+
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class StockSyncServiceTest {
@@ -47,7 +51,7 @@ class StockSyncServiceTest {
 
     @BeforeEach
     void setUp() {
-        doAnswer(invocation -> {
+        lenient().doAnswer(invocation -> {
             invocation.getArgument(0, java.util.function.Consumer.class).accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
@@ -136,6 +140,26 @@ class StockSyncServiceTest {
         verify(productStockRepository, never()).findBySku(any());
         verify(productStockRepository, never()).save(any(ProductStock.class));
         verify(stockEventRepository, never()).save(any(StockEvent.class));
+    }
+
+    @Test
+    void persistsStockItemsOnBoundedElasticThread() {
+        AtomicReference<String> transactionThreadName = new AtomicReference<>();
+
+        doAnswer(invocation -> {
+            transactionThreadName.set(Thread.currentThread().getName());
+            invocation.getArgument(0, java.util.function.Consumer.class).accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
+
+        StockSyncService stockSyncService = newStockSyncService();
+
+        when(vendorStockClient.fetchStock()).thenReturn(Mono.just(List.of(newStockItem(10))));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.empty());
+
+        stockSyncService.synchronize();
+
+        assertThat(transactionThreadName.get()).contains("boundedElastic");
     }
 
     private StockSyncService newStockSyncService() {

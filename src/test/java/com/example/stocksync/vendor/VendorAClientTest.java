@@ -1,5 +1,9 @@
 package com.example.stocksync.vendor;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.get;
+import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.stocksync.config.StockSyncProperties;
@@ -11,11 +15,6 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.reactive.function.client.WebClient;
-
-import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
-import static com.github.tomakehurst.wiremock.client.WireMock.get;
-import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
-import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
 
 @WireMockTest(httpPort = 8089)
 class VendorAClientTest {
@@ -35,25 +34,7 @@ class VendorAClientTest {
                                 ]
                                 """)));
 
-        StockSyncProperties properties = new StockSyncProperties(
-                60000L,
-                new StockSyncProperties.VendorA(
-                        "http://localhost:8089",
-                        "/vendor-a/products",
-                        Duration.ofSeconds(3)
-                ),
-                new StockSyncProperties.VendorB(
-                        "/tmp/vendor-b/stock.csv",
-                        Duration.ofSeconds(2)
-                )
-        );
-
-        VendorAClient client = new VendorAClient(
-                WebClient.builder(),
-                properties,
-                CircuitBreakerRegistry.ofDefaults(),
-                RetryRegistry.ofDefaults()
-        );
+        VendorAClient client = newClient();
 
         List<StockItem> stockItems = client.fetchStock().block();
 
@@ -65,5 +46,41 @@ class VendorAClientTest {
         assertThat(stockItem.name()).isEqualTo("Vendor A Keyboard");
         assertThat(stockItem.quantity()).isEqualTo(30);
         assertThat(stockItem.vendor()).isEqualTo("VENDOR_A");
+    }
+
+    @Test
+    void fetchStockReturnsEmptyListWhenVendorAFails() {
+        stubFor(get(urlEqualTo("/vendor-a/products"))
+                .willReturn(aResponse().withStatus(500)));
+
+        VendorAClient client = newClient();
+
+        List<StockItem> stockItems = client.fetchStock().block();
+
+        assertThat(stockItems).isEmpty();
+    }
+
+    private VendorAClient newClient() {
+        return new VendorAClient(
+                WebClient.builder(),
+                properties(),
+                CircuitBreakerRegistry.ofDefaults(),
+                RetryRegistry.ofDefaults()
+        );
+    }
+
+    private StockSyncProperties properties() {
+        return new StockSyncProperties(
+                60000L,
+                new StockSyncProperties.VendorA(
+                        "http://localhost:8089",
+                        "/vendor-a/products",
+                        Duration.ofSeconds(3)
+                ),
+                new StockSyncProperties.VendorB(
+                        "/tmp/vendor-b/stock.csv",
+                        Duration.ofSeconds(2)
+                )
+        );
     }
 }

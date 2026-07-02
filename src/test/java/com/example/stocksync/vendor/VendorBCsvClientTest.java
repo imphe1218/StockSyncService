@@ -27,11 +27,7 @@ class VendorBCsvClientTest {
                 B-100,Vendor B Monitor,15
                 """);
 
-        VendorBCsvClient client = new VendorBCsvClient(
-                properties(csvPath),
-                CircuitBreakerRegistry.ofDefaults(),
-                RetryRegistry.ofDefaults()
-        );
+        VendorBCsvClient client = newClient(csvPath);
 
         List<StockItem> stockItems = client.fetchStock().block();
 
@@ -49,15 +45,39 @@ class VendorBCsvClientTest {
     void fetchStockReturnsEmptyListWhenCsvFileDoesNotExist() {
         Path csvPath = tempDir.resolve("missing.csv");
 
-        VendorBCsvClient client = new VendorBCsvClient(
-                properties(csvPath),
-                CircuitBreakerRegistry.ofDefaults(),
-                RetryRegistry.ofDefaults()
-        );
+        VendorBCsvClient client = newClient(csvPath);
 
         List<StockItem> stockItems = client.fetchStock().block();
 
         assertThat(stockItems).isEmpty();
+    }
+
+    @Test
+    void fetchStockSkipsInvalidCsvRows() throws Exception {
+        Path csvPath = tempDir.resolve("stock.csv");
+
+        Files.writeString(csvPath, """
+                sku,name,quantity
+                B-100,Vendor B Monitor,15
+                B-200,Vendor B Dock,invalid
+                B-300,Vendor B Stand,-1
+                ,Missing SKU,5
+                """);
+
+        VendorBCsvClient client = newClient(csvPath);
+
+        List<StockItem> stockItems = client.fetchStock().block();
+
+        assertThat(stockItems).hasSize(1);
+        assertThat(stockItems.get(0).sku()).isEqualTo("B-100");
+    }
+
+    private VendorBCsvClient newClient(final Path csvPath) {
+        return new VendorBCsvClient(
+                properties(csvPath),
+                CircuitBreakerRegistry.ofDefaults(),
+                RetryRegistry.ofDefaults()
+        );
     }
 
     private StockSyncProperties properties(final Path csvPath) {
