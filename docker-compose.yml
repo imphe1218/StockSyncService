@@ -1,7 +1,38 @@
 services:
-  stocksyncservice:
+  stocksyncservice-dev:
+    profiles: ["dev"]
     build: .
-    container_name: stocksyncservice
+    container_name: stocksyncservice-dev
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      STOCK_SYNC_VENDOR_A_BASE_URL: http://wiremock:8080
+      STOCK_SYNC_VENDOR_B_CSV_PATH: /data/vendor-b/stock.csv
+    volumes:
+      - ./vendor-b:/data/vendor-b:ro
+    depends_on:
+      - wiremock
+
+  stocksyncservice-test:
+    profiles: ["test"]
+    build: .
+    container_name: stocksyncservice-test
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: test
+      STOCK_SYNC_VENDOR_A_BASE_URL: http://wiremock:8080
+      STOCK_SYNC_VENDOR_B_CSV_PATH: /data/vendor-b/stock.csv
+    volumes:
+      - ./vendor-b:/data/vendor-b:ro
+    depends_on:
+      - wiremock
+
+  stocksyncservice-prod:
+    profiles: ["prod"]
+    build: .
+    container_name: stocksyncservice-prod
     ports:
       - "8080:8080"
     environment:
@@ -14,6 +45,7 @@ services:
       - wiremock
 
   wiremock:
+    profiles: ["dev", "test", "prod"]
     image: wiremock/wiremock:3.9.2
     container_name: vendor-a-wiremock
     ports:
