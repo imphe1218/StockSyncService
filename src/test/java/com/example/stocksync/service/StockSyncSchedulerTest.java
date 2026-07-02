@@ -3,18 +3,13 @@ package com.example.stocksync.service;
 import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Mockito;
 
-@ExtendWith(MockitoExtension.class)
 class StockSyncSchedulerTest {
 
-    @Mock
-    private StockSyncService stockSyncService;
-
     @Test
-    void runScheduledSyncDelegatesToStockSyncService() {
+    void runScheduledSyncCallsStockSyncService() {
+        StockSyncService stockSyncService = Mockito.mock(StockSyncService.class);
         StockSyncScheduler scheduler = new StockSyncScheduler(stockSyncService);
 
         scheduler.runScheduledSync();

@@ -4,8 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.example.stocksync.config.StockSyncProperties;
 import com.example.stocksync.domain.StockItem;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import io.github.resilience4j.retry.RetryRegistry;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -16,28 +19,59 @@ class VendorBCsvClientTest {
     private Path tempDir;
 
     @Test
-    void fetchStockReadsCsvFile() throws Exception {
-        Path csv = tempDir.resolve("stock.csv");
-        Files.writeString(csv, "sku,name,quantity\nB-1,Monitor,7\n");
+    void fetchStockReturnsMappedStockItemsFromCsv() throws Exception {
+        Path csvPath = tempDir.resolve("stock.csv");
 
-        StockSyncProperties.VendorB propertyVendorB = new StockSyncProperties.VendorB(csv.toString());
+        Files.writeString(csvPath, """
+                sku,name,quantity
+                B-100,Vendor B Monitor,15
+                """);
 
-        StockSyncProperties properties = new StockSyncProperties(300000L, null , propertyVendorB);
+        VendorBCsvClient client = new VendorBCsvClient(
+                properties(csvPath),
+                CircuitBreakerRegistry.ofDefaults(),
+                RetryRegistry.ofDefaults()
+        );
 
-        VendorBCsvClient client = new VendorBCsvClient(properties);
-        List<StockItem> stockItems = client.fetchStock();
+        List<StockItem> stockItems = client.fetchStock().block();
 
-        assertThat(stockItems).containsExactly(new StockItem("B-1", "Monitor", 7, "VENDOR_B"));
+        assertThat(stockItems).hasSize(1);
+
+        StockItem stockItem = stockItems.get(0);
+
+        assertThat(stockItem.sku()).isEqualTo("B-100");
+        assertThat(stockItem.name()).isEqualTo("Vendor B Monitor");
+        assertThat(stockItem.quantity()).isEqualTo(15);
+        assertThat(stockItem.vendor()).isEqualTo("VENDOR_B");
     }
 
     @Test
     void fetchStockReturnsEmptyListWhenCsvFileDoesNotExist() {
-        Path csv = tempDir.resolve("missing-stock.csv");
-        StockSyncProperties.VendorB propertyVendorB = new StockSyncProperties.VendorB(csv.toString());
-        StockSyncProperties properties = new StockSyncProperties(300000L, null, propertyVendorB);
+        Path csvPath = tempDir.resolve("missing.csv");
 
-        VendorBCsvClient client = new VendorBCsvClient(properties);
+        VendorBCsvClient client = new VendorBCsvClient(
+                properties(csvPath),
+                CircuitBreakerRegistry.ofDefaults(),
+                RetryRegistry.ofDefaults()
+        );
 
-        assertThat(client.fetchStock()).isEmpty();
+        List<StockItem> stockItems = client.fetchStock().block();
+
+        assertThat(stockItems).isEmpty();
+    }
+
+    private StockSyncProperties properties(final Path csvPath) {
+        return new StockSyncProperties(
+                60000L,
+                new StockSyncProperties.VendorA(
+                        "http://localhost:8089",
+                        "/vendor-a/products",
+                        Duration.ofSeconds(3)
+                ),
+                new StockSyncProperties.VendorB(
+                        csvPath.toString(),
+                        Duration.ofSeconds(2)
+                )
+        );
     }
 }
