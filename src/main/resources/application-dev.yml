@@ -1,0 +1,5 @@
+logging:
+  level:
+    root: DEBUG
+    com.example.stocksync: DEBUG
+    org.springframework.web.reactive.function.client: DEBUG

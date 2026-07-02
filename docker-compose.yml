@@ -5,6 +5,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: prod
       STOCK_SYNC_VENDOR_A_BASE_URL: http://wiremock:8080
       STOCK_SYNC_VENDOR_B_CSV_PATH: /data/vendor-b/stock.csv
     volumes:
