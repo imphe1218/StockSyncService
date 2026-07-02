@@ -67,3 +67,9 @@ resilience4j:
       vendorB:
         max-attempts: 2
         wait-duration: 500ms
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
