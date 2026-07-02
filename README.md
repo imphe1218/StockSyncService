@@ -690,7 +690,6 @@ Out-of-stock events are generated only when the following condition is true:
 
 ```text id="tr7ysd"
 Previous Quantity > 0
-Current Quantity  = 0
 ```
 
 This prevents duplicate out-of-stock events for products that remain unavailable.
