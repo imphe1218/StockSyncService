@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -19,13 +19,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
-
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Mono;
 
@@ -51,7 +52,8 @@ class StockSyncServiceTest {
     @BeforeEach
     void setUp() {
         lenient().doAnswer(invocation -> {
-            invocation.getArgument(0, java.util.function.Consumer.class).accept(null);
+            final Consumer<TransactionStatus> callback = getTransactionCallback(invocation.getArgument(0));
+            callback.accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
     }
@@ -147,7 +149,8 @@ class StockSyncServiceTest {
 
         doAnswer(invocation -> {
             transactionThreadName.set(Thread.currentThread().getName());
-            invocation.getArgument(0, java.util.function.Consumer.class).accept(null);
+            final Consumer<TransactionStatus> callback = getTransactionCallback(invocation.getArgument(0));
+            callback.accept(null);
             return null;
         }).when(transactionTemplate).executeWithoutResult(any());
 
@@ -168,6 +171,11 @@ class StockSyncServiceTest {
                 stockEventRepository,
                 transactionTemplate
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Consumer<TransactionStatus> getTransactionCallback(final Object argument) {
+        return (Consumer<TransactionStatus>) argument;
     }
 
     private static StockItem newStockItem(final int quantity) {
