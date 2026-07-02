@@ -31,7 +31,7 @@ class ProductControllerTest {
     void listProductsReturnsProducts() throws Exception {
         when(productStockRepository.findAll()).thenReturn(List.of(new ProductStock("SKU-1", "Item", 4, "TEST")));
 
-        mockMvc.perform(get("/products"))
+        mockMvc.perform(get("/api/v1/products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].sku").value("SKU-1"));
@@ -41,7 +41,7 @@ class ProductControllerTest {
     void listProductsReturnsEmptyListWhenNoProductsExist() throws Exception {
         when(productStockRepository.findAll()).thenReturn(List.of());
 
-        mockMvc.perform(get("/products"))
+        mockMvc.perform(get("/api/v1/products"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
     }

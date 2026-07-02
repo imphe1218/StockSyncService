@@ -1,6 +1,6 @@
 package com.example.stocksync.controller;
 
-import com.example.stocksync.domain.ProductStock;
+import com.example.stocksync.dto.ProductStockResponse;
 import com.example.stocksync.repository.ProductStockRepository;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,7 +18,10 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductStock> getProducts() {
-        return productStockRepository.findAll();
+    public List<ProductStockResponse> getProducts() {
+        return productStockRepository.findAll()
+                .stream()
+                .map(ProductStockResponse::from)
+                .toList();
     }
 }
