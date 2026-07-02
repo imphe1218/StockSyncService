@@ -1,6 +1,5 @@
 package com.example.stocksync.service;
 
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.Test;
@@ -20,6 +19,6 @@ class StockSyncSchedulerTest {
 
         scheduler.runScheduledSync();
 
-        verify(stockSyncService, times(1)).synchronize();
+        verify(stockSyncService).synchronize();
     }
 }
