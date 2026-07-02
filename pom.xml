@@ -274,7 +274,7 @@
                     <scope>runtime</scope>
                     <clientConfiguration>
                         <authConfiguration>
-                            <username>${env.SONATYPE_EMAIL}}</username>
+                            <username>${env.SONATYPE_EMAIL}</username>
                             <password>${env.SONATYPE_TOKEN}</password>
                         </authConfiguration>
                     </clientConfiguration>
