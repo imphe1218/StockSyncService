@@ -68,8 +68,16 @@ public class VendorAClient implements VendorStockClient {
 
     private Mono<List<StockItem>> handleFailure(final Throwable ex) {
         if (LOGGER.isWarnEnabled()) {
-            LOGGER.warn("Vendor A stock fetch failed. Skipping Vendor A for this sync.", ex);
+            LOGGER.warn(
+                    "Vendor A stock fetch failed: {}. Skipping Vendor A for this sync.",
+                    ex.getMessage()
+            );
         }
+
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Vendor A stock fetch failure details", ex);
+        }
+
         return Mono.just(List.of());
     }
 
