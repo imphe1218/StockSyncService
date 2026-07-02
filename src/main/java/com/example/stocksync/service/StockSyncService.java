@@ -6,6 +6,7 @@ import com.example.stocksync.domain.StockItem;
 import com.example.stocksync.repository.ProductStockRepository;
 import com.example.stocksync.repository.StockEventRepository;
 import com.example.stocksync.vendor.VendorStockClient;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+
 
 @Service
 public class StockSyncService {
@@ -26,6 +28,10 @@ public class StockSyncService {
     private final StockEventRepository stockEventRepository;
     private final TransactionTemplate transactionTemplate;
 
+    @SuppressFBWarnings(
+            value = "EI_EXPOSE_REP2",
+            justification = "TransactionTemplate is a Spring-managed infrastructure bean intended to be shared."
+    )
     public StockSyncService(
             final List<VendorStockClient> vendorStockClients,
             final ProductStockRepository productStockRepository,
