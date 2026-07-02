@@ -1,20 +1,17 @@
 spring:
   application:
     name: stock-sync-service
-
   datasource:
     url: jdbc:h2:mem:stocksync;MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password:
-
   h2:
     console:
       enabled: true
       path: /h2-console
       settings:
         web-allow-others: true
-
   jpa:
     hibernate:
       ddl-auto: update
@@ -22,12 +19,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
   flyway:
-    enabled: false
+    enabled: true
 
 server:
   port: 8080
+
+api:
+  base-path: /api/v1
 
 management:
   endpoints:
@@ -37,10 +36,8 @@ management:
 
 stock-sync:
   schedule-ms: 60000
-
   vendor-a:
-    base-url: http://localhost:8089
+    base-url: http://wiremock:8080
     stock-path: /vendor-a/products
-
   vendor-b:
-    csv-path: ./vendor-b/stock.csv
+    csv-path: /tmp/vendor-b/stock.csv
