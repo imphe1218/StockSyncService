@@ -32,12 +32,38 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,circuitbreakers,retries
 
 stock-sync:
   schedule-ms: 60000
   vendor-a:
     base-url: http://wiremock:8080
     stock-path: /vendor-a/products
+    timeout: 3s
   vendor-b:
     csv-path: /tmp/vendor-b/stock.csv
+    timeout: 2s
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      vendorA:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 1
+      vendorB:
+        sliding-window-size: 5
+        minimum-number-of-calls: 3
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 1
+  retry:
+    instances:
+      vendorA:
+        max-attempts: 3
+        wait-duration: 500ms
+      vendorB:
+        max-attempts: 2
+        wait-duration: 500ms
