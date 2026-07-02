@@ -56,4 +56,24 @@ public class ProductStock {
     public int getQuantity() { return quantity; }
     public String getVendor() { return vendor; }
     public LocalDateTime getLastUpdated() { return lastUpdated; }
+
+    public void setSku(String sku) {
+        this.sku = sku;
+    }
+
+    public void setName(String productName) {
+        this.name = name;
+    }
+
+    public void setQuantity(int quantity) {
+        this.quantity = quantity;
+    }
+
+    public void setVendor(String vendor) {
+        this.vendor = vendor;
+    }
+
+    public void setLastUpdated(LocalDateTime now) {
+        this.lastUpdated = now;
+    }
 }

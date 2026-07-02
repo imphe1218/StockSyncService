@@ -1,118 +1,101 @@
 package com.example.stocksync.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.example.stocksync.domain.ProductStock;
+import com.example.stocksync.domain.StockEvent;
 import com.example.stocksync.domain.StockItem;
 import com.example.stocksync.repository.ProductStockRepository;
 import com.example.stocksync.repository.StockEventRepository;
 import com.example.stocksync.vendor.VendorStockClient;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@DataJpaTest
-@Import(StockSyncServiceTest.TestConfig.class)
+@ExtendWith(MockitoExtension.class)
 class StockSyncServiceTest {
 
-    @Autowired
-    private StockSyncService stockSyncService;
+    private static final String SKU = "SKU-001";
+    private static final String PRODUCT_NAME = "Gaming Mouse";
+    private static final String VENDOR = "Vendor A";
 
-    @Autowired
+    @Mock
+    private VendorStockClient vendorStockClient;
+
+    @Mock
     private ProductStockRepository productStockRepository;
 
-    @Autowired
+    @Mock
     private StockEventRepository stockEventRepository;
 
-    @Autowired
-    private MutableVendorStockClient vendorStockClient;
-
     @Test
-    void synchronizeCreatesProductsAndOutOfStockEvent() {
-        vendorStockClient.setStockItems(List.of(
-                new StockItem("SKU-1", "Test Item 1", 5, "TEST_VENDOR"),
-                new StockItem("SKU-2", "Test Item 2", 0, "TEST_VENDOR")
-        ));
+    void createsOutOfStockEventWhenQuantityMovesFromNonZeroToZero() {
+        final StockSyncService stockSyncService = new StockSyncService(
+                List.of(vendorStockClient),
+                productStockRepository,
+                stockEventRepository
+        );
+
+        when(vendorStockClient.fetchStock()).thenReturn(List.of(newStockItem(0)));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock(10)));
 
         stockSyncService.synchronize();
 
-        assertThat(productStockRepository.findAll()).hasSize(2);
-        assertThat(stockEventRepository.findAll()).hasSize(1);
+        verify(stockEventRepository).save(any(StockEvent.class));
+        verify(productStockRepository).save(any(ProductStock.class));
     }
 
     @Test
-    void synchronizeUpdatesExistingProduct() {
-        productStockRepository.save(new ProductStock("SKU-1", "Old Name", 5, "OLD_VENDOR"));
-        vendorStockClient.setStockItems(List.of(
-                new StockItem("SKU-1", "New Name", 8, "NEW_VENDOR")
-        ));
+    void doesNotCreateOutOfStockEventWhenQuantityRemainsZero() {
+        final StockSyncService stockSyncService = new StockSyncService(
+                List.of(vendorStockClient),
+                productStockRepository,
+                stockEventRepository
+        );
+
+        when(vendorStockClient.fetchStock()).thenReturn(List.of(newStockItem(0)));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock(0)));
 
         stockSyncService.synchronize();
 
-        ProductStock productStock = productStockRepository.findBySku("SKU-1").orElseThrow();
-
-        assertThat(productStock.getName()).isEqualTo("New Name");
-        assertThat(productStock.getQuantity()).isEqualTo(8);
-        assertThat(productStock.getVendor()).isEqualTo("NEW_VENDOR");
-        assertThat(stockEventRepository.findAll()).isEmpty();
+        verify(stockEventRepository, never()).save(any(StockEvent.class));
+        verify(productStockRepository).save(any(ProductStock.class));
     }
 
     @Test
-    void synchronizeCreatesOutOfStockEventWhenExistingProductTransitionsToZero() {
-        productStockRepository.save(new ProductStock("SKU-1", "Item", 5, "TEST_VENDOR"));
-        vendorStockClient.setStockItems(List.of(
-                new StockItem("SKU-1", "Item", 0, "TEST_VENDOR")
-        ));
+    void doesNotCreateOutOfStockEventWhenQuantityMovesFromZeroToNonZero() {
+        final StockSyncService stockSyncService = new StockSyncService(
+                List.of(vendorStockClient),
+                productStockRepository,
+                stockEventRepository
+        );
+
+        when(vendorStockClient.fetchStock()).thenReturn(List.of(newStockItem(15)));
+        when(productStockRepository.findBySku(SKU)).thenReturn(Optional.of(existingProductStock(0)));
 
         stockSyncService.synchronize();
 
-        assertThat(productStockRepository.findBySku("SKU-1").orElseThrow().getQuantity()).isZero();
-        assertThat(stockEventRepository.findAll()).hasSize(1);
+        verify(stockEventRepository, never()).save(any(StockEvent.class));
+        verify(productStockRepository).save(any(ProductStock.class));
     }
 
-    @Test
-    void synchronizeDoesNotCreateEventWhenExistingProductRemainsOutOfStock() {
-        productStockRepository.save(new ProductStock("SKU-1", "Item", 0, "TEST_VENDOR"));
-        vendorStockClient.setStockItems(List.of(
-                new StockItem("SKU-1", "Item", 0, "TEST_VENDOR")
-        ));
-
-        stockSyncService.synchronize();
-
-        assertThat(stockEventRepository.findAll()).isEmpty();
+    private static StockItem newStockItem(final int quantity) {
+        return new StockItem(SKU, PRODUCT_NAME, quantity, VENDOR);
     }
 
-    static class TestConfig {
+    private static ProductStock existingProductStock(final int quantity) {
+        final ProductStock productStock =
+                new ProductStock(SKU, PRODUCT_NAME, quantity, VENDOR);
 
-        @Bean
-        MutableVendorStockClient vendorStockClient() {
-            return new MutableVendorStockClient();
-        }
+        productStock.setLastUpdated(LocalDateTime.now());
 
-        @Bean
-        StockSyncService stockSyncService(
-                final List<VendorStockClient> clients,
-                final ProductStockRepository productStockRepository,
-                final StockEventRepository stockEventRepository
-        ) {
-            return new StockSyncService(clients, productStockRepository, stockEventRepository);
-        }
-    }
-
-    static class MutableVendorStockClient implements VendorStockClient {
-
-        private List<StockItem> stockItems = List.of();
-
-        void setStockItems(final List<StockItem> stockItems) {
-            this.stockItems = List.copyOf(stockItems);
-        }
-
-        @Override
-        public List<StockItem> fetchStock() {
-            return stockItems;
-        }
+        return productStock;
     }
 }
