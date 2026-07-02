@@ -56,7 +56,7 @@ public class VendorAClient implements VendorStockClient {
                 .onErrorResume(this::handleFailure);
     }
 
-    private List<StockItem> toStockItems(final VendorAStockResponse[] response) {
+    private List<StockItem> toStockItems(final VendorAStockResponse... response) {
         if (response == null) {
             return List.of();
         }
